@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Insta Saver</title>
+<link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#0f172a">
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--tx:#e2e8f0;--mu:#94a3b8;--ac:#f472b6;--ok:#4ade80;--er:#f87171}
+@media(prefers-color-scheme:light){:root{--bg:#f1f5f9;--card:#fff;--tx:#0f172a;--mu:#64748b}}
+*{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--tx);padding:16px}
+main{max-width:440px;margin:auto}h1{font-size:1.4rem}.c{background:var(--card);padding:16px;border-radius:14px;margin-bottom:14px}
+input,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid #475569;background:transparent;color:inherit;font:inherit;margin:6px 0}
+button{width:100%;padding:13px;border:0;border-radius:10px;background:var(--ac);color:#0f172a;font-weight:700;font-size:1rem}
+button:disabled{opacity:.5}label{font-size:.8rem;color:var(--mu)}#st{margin-top:12px;white-space:pre-wrap}
+.ok{color:var(--ok)}.er{color:var(--er)}details summary{cursor:pointer;color:var(--mu)}
+</style></head><body><main>
+<h1>📌 Insta Saver</h1>
+<div class="c">
+<label>Instagram link</label><input id="u" type="url" placeholder="https://www.instagram.com/reel/...">
+<details><summary>Caption didn't load? Paste it here</summary><textarea id="cap" rows="4" placeholder="Optional: paste the post caption"></textarea></details>
+<button id="go">Process &amp; save</button><div id="st"></div></div>
+<details class="c"><summary>Settings</summary>
+<label>Web App URL (from Apps Script deploy)</label><input id="ws" type="url" placeholder="https://script.google.com/macros/s/.../exec">
+<label>App token (same as APP_TOKEN in Apps Script)</label><input id="tk" type="password">
+<button id="sv">Save settings</button></details>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const ls={get:k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const IG=/https?:\/\/(?:www\.)?instagram\.com\/[^\s]+/i;
+$('ws').value=ls.get('ws');$('tk').value=ls.get('tk');
+// Android share-sheet / ?url= support: pull the IG link out of any shared text
+const q=new URLSearchParams(location.search);
+const shared=[q.get('url'),q.get('text'),q.get('title')].join(' ').match(IG);
+if(shared)$('u').value=shared[0];
+function say(m,c){$('st').textContent=m;$('st').className=c||''}
+$('sv').onclick=()=>{ls.set('ws',$('ws').value.trim());ls.set('tk',$('tk').value.trim());say('Settings saved.','ok')};
+$('go').onclick=async()=>{
+  const m=$('u').value.match(IG),ws=ls.get('ws'),tk=ls.get('tk');
+  if(!ws||!tk)return say('Open Settings and add the Web App URL and token first.','er');
+  if(!m)return say('Please paste a valid Instagram link.','er');
+  $('go').disabled=true;say('Reading post and categorizing…');
+  try{
+    const r=await fetch(ws,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({url:m[0],caption:$('cap').value,token:tk})});
+    const j=await r.json();
+    if(j.status==='success'){say('Saved under '+j.category+'\n'+j.title+(j.items.length?'\n• '+j.items.join('\n• '):'')+'\n'+j.description,'ok');$('u').value='';$('cap').value=''}
+    else if(j.status==='duplicate')say('Already in your sheet.','ok');
+    else say(j.message||'Something went wrong','er');
+  }catch(e){say('Could not reach the server. Check the Web App URL and your connection.','er')}
+  $('go').disabled=false};
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
